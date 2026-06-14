@@ -81,7 +81,7 @@
         <input type="text" id="userInput" placeholder="Seu Nome" style="width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; margin-bottom: 12px; outline: none;">
         <input type="password" id="passInput" placeholder="Senha" style="width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; margin-bottom: 20px; outline: none;">
         <button id="authBtn" onclick="handleAuth()" style="width: 100%; padding: 14px; background: var(--gradient-blue); border: none; color: white; border-radius: 12px; font-weight: bold; cursor: pointer;">Entrar</button>
-        <div><span class="toggle-link" id="authToggleLink" onclick="toggleAuthMode()">Não tem conta? Criar Account</span></div>
+        <div><span class="toggle-link" id="authToggleLink" onclick="toggleAuthMode()">Não tem conta? Criar Conta</span></div>
     </div>
 
     <div id="appPage" class="app-container hidden">
@@ -111,7 +111,7 @@
                 <div class="charts-grid">
                     <div class="chart-card">
                         <h3 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">Gasto por Tipo</h3>
-                        <div class="chart-container"><canvas id="gasChart"><canvas></div>
+                        <div class="chart-container"><canvas id="gasChart"></canvas></div>
                     </div>
                     <div class="chart-card">
                         <h3 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">Comparativo Mensal</h3>
@@ -171,24 +171,41 @@
                 <button id="tabOut" class="tab-btn active" onclick="setModalType('outflow')">Abastecimento</button>
                 <button id="tabIn" class="tab-btn" onclick="setModalType('maintenance')">Manutenção Geral</button>
             </div>
+            
             <div class="input-group">
                 <label>Descrição</label>
-                <input type="text" id="logDesc" placeholder="Ex: Posto BR, Troca de Pastilha...">
+                <input type="text" id="logDesc" placeholder="Ex: Posto BR, Abastecimento Semanal...">
             </div>
-            <div class="grid-2">
-                <div class="input-group">
-                    <label>Valor Total (R$)</label>
-                    <input type="number" id="logValue" placeholder="0,00" step="0.01">
+
+            <div id="fuelFieldsGroup">
+                <div class="grid-2">
+                    <div class="input-group">
+                        <label>Valor Abastecido (R$)</label>
+                        <input type="number" id="logValueFuel" placeholder="0,00" step="0.01" oninput="calculateLiters()">
+                    </div>
+                    <div class="input-group">
+                        <label>Valor da Gasolina (R$ por Litro)</label>
+                        <input type="number" id="logGasPrice" placeholder="Ex: 5,89" step="0.001" oninput="calculateLiters()">
+                    </div>
                 </div>
                 <div class="input-group">
-                    <label>KM Atual (Odômetro)</label>
-                    <input type="number" id="logKm" placeholder="Ex: 12400">
+                    <label>Litros Abastecidos (Calculado Automaticamente)</label>
+                    <input type="number" id="logLiters" placeholder="0,00" step="0.01">
                 </div>
             </div>
-            <div class="input-group" id="litersFieldGroup">
-                <label>Litros Abastecidos (Opcional)</label>
-                <input type="number" id="logLiters" placeholder="0,00" step="0.01">
+
+            <div id="maintFieldsGroup" class="hidden">
+                <div class="input-group">
+                    <label>Valor da Manutenção (R$)</label>
+                    <input type="number" id="logValueMaint" placeholder="0,00" step="0.01">
+                </div>
             </div>
+
+            <div class="input-group">
+                <label>KM Atual (Odômetro)</label>
+                <input type="number" id="logKm" placeholder="Ex: 12400">
+            </div>
+
             <button class="btn-submit" onclick="saveEntry()">Confirmar Registro</button>
             <button class="btn-close" onclick="toggleModal(false)">Cancelar</button>
         </div>
@@ -208,200 +225,4 @@
             document.getElementById('userInput').value = '';
             document.getElementById('passInput').value = '';
             document.getElementById('authTitle').innerText = isSignUpMode ? "Criar Conta" : "HazLog";
-            document.getElementById('authBtn').innerText = isSignUpMode ? "Cadastrar" : "Entrar";
-            document.getElementById('authToggleLink').innerText = isSignUpMode ? "Já tem conta? Login" : "Criar Conta";
-        }
-
-        function handleAuth() {
-            const user = document.getElementById('userInput').value.trim();
-            const pass = document.getElementById('passInput').value;
-            if(!user || !pass) return alert("Preencha todos os campos.");
-            let db = JSON.parse(localStorage.getItem('gaslog_db')) || {};
-            if (isSignUpMode) {
-                if (db[user]) return alert("Usuário existente!");
-                db[user] = { password: pass, avatar: "", vehicleType: "moto", maintLimit: 4000, records: [] };
-                localStorage.setItem('gaslog_db', JSON.stringify(db));
-                alert("Conta criada!");
-            } else {
-                if (!db[user]) return alert("Não encontrado!");
-                if (db[user].password !== pass) return alert("Senha incorreta!");
-            }
-            currentUser = user;
-            document.getElementById('loginPage').classList.add('hidden');
-            document.getElementById('appPage').classList.remove('hidden');
-            updateDashboard();
-        }
-
-        function toggleProfileModal(show) {
-            document.getElementById('profileModal').classList.toggle('hidden', !show);
-            if(show) {
-                let db = JSON.parse(localStorage.getItem('gaslog_db'));
-                document.getElementById('profileUser').value = currentUser;
-                document.getElementById('profilePass').value = "";
-                const vehicleType = db[currentUser].vehicleType || "moto";
-                document.getElementById('profileVehicleType').value = vehicleType;
-                document.getElementById('profileMaintLimit').value = db[currentUser].maintLimit || (vehicleType === "moto" ? 4000 : 6000);
-                base64Avatar = db[currentUser].avatar || defaultAvatar;
-                document.getElementById('profilePreview').src = base64Avatar;
-            }
-        }
-
-        function updateDefaultKmFields() {
-            const vType = document.getElementById('profileVehicleType').value;
-            document.getElementById('profileMaintLimit').value = vType == "moto" ? 4000 : 6000;
-        }
-
-        function previewImage(input) {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    base64Avatar = e.target.result;
-                    document.getElementById('profilePreview').src = base64Avatar;
-                };
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
-
-        function saveProfile() {
-            const newUser = document.getElementById('profileUser').value.trim();
-            const newPass = document.getElementById('profilePass').value;
-            const vType = document.getElementById('profileVehicleType').value;
-            const mLimit = parseInt(document.getElementById('profileMaintLimit').value) || (vType === "moto" ? 4000 : 6000);
-            if(!newUser) return alert("Nome inválido.");
-            let db = JSON.parse(localStorage.getItem('gaslog_db'));
-            if(newUser !== currentUser && db[newUser]) return alert("Nome em uso.");
-            let userData = db[currentUser];
-            userData.avatar = base64Avatar;
-            userData.vehicleType = vType;
-            userData.maintLimit = mLimit;
-            if(newPass.trim() !== "") userData.password = newPass;
-            if(newUser !== currentUser) {
-                db[newUser] = userData;
-                delete db[currentUser];
-                currentUser = newUser;
-            } else {
-                db[currentUser] = userData;
-            }
-            localStorage.setItem('gaslog_db', JSON.stringify(db));
-            toggleProfileModal(false);
-            updateDashboard();
-        }
-
-        function toggleModal(show) {
-            document.getElementById('actionModal').classList.toggle('hidden', !show);
-            if(show) {
-                document.getElementById('logDesc').value = '';
-                document.getElementById('logValue').value = '';
-                document.getElementById('logKm').value = '';
-                document.getElementById('logLiters').value = '';
-                setModalType('outflow');
-            }
-        }
-
-        function setModalType(type) {
-            currentType = type;
-            document.getElementById('tabOut').classList.toggle('active', type === 'outflow');
-            document.getElementById('tabIn').classList.toggle('active', type === 'maintenance');
-            document.getElementById('litersFieldGroup').style.display = type === 'maintenance' ? 'none' : 'block';
-        }
-
-        function saveEntry() {
-            const desc = document.getElementById('logDesc').value.trim();
-            const val = parseFloat(document.getElementById('logValue').value);
-            const km = parseInt(document.getElementById('logKm').value) || 0;
-            const liters = parseFloat(document.getElementById('logLiters').value) || 0;
-            if(!desc || !val || !km) return alert("Por favor, preencha Descrição, Valor e o KM Atual.");
-            let db = JSON.parse(localStorage.getItem('gaslog_db'));
-            const now = new Date();
-            db[currentUser].records.push({
-                id: Date.now(),
-                type: currentType,
-                description: desc,
-                value: val,
-                km: km,
-                liters: currentType === 'outflow' ? liters : 0,
-                date: now.toLocaleDateString('pt-BR'),
-                timestamp: now.getTime()
-            });
-            localStorage.setItem('gaslog_db', JSON.stringify(db));
-            toggleModal(false);
-            updateDashboard();
-        }
-
-        function updateDashboard() {
-            let db = JSON.parse(localStorage.getItem('gaslog_db')) || {};
-            let userObj = db[currentUser] || { records: [], avatar: "", vehicleType: "moto", maintLimit: 4000 };
-            let records = userObj.records || [];
-            let vehicle = userObj.vehicleType || "moto";
-            let limiteCustomizado = userObj.maintLimit || (vehicle === "moto" ? 4000 : 6000);
-            document.getElementById('headerAvatar').src = userObj.avatar || defaultAvatar;
-            const iconEl = document.getElementById('vehicleIcon');
-            if (vehicle === 'carro') { iconEl.className = 'fa-solid fa-car'; }
-            else { iconEl.className = 'fa-solid fa-motorcycle'; }
-            document.querySelector('#welcomeUser span').innerText = currentUser;
-            let totalSpent = 0, totalFuel = 0, totalMaint = 0;
-            let kms = [];
-            let currentMonthCost = 0, lastMonthCost = 0;
-            const now = new Date();
-            const currentMonth = now.getMonth();
-            const currentYear = now.getFullYear();
-            let lastMonth = currentMonth - 1;
-            let lastMonthYear = currentYear;
-            if(lastMonth < 0) { lastMonth = 11; lastMonthYear--; }
-            const listElement = document.getElementById('logList');
-            listElement.innerHTML = '';
-            [...records].reverse().forEach(r => {
-                totalSpent += r.value;
-                if(r.type === 'outflow') totalFuel += r.value;
-                if(r.type === 'maintenance') totalMaint += r.value;
-                if(r.km > 0) kms.push(r.km);
-                let rDate = r.timestamp ? new Date(r.timestamp) : new Date();
-                if(rDate.getMonth() === currentMonth && rDate.getFullYear() === currentYear) { currentMonthCost += r.value; }
-                else if(rDate.getMonth() === lastMonth && rDate.getFullYear() === lastMonthYear) { lastMonthCost += r.value; }
-                let subInfo = `<i class="fa-solid fa-gauge"></i> ${r.km} km`;
-                if(r.liters > 0) subInfo += ` | <i class="fa-solid fa-droplet"></i> ${r.liters}L`;
-                listElement.innerHTML += `<div class="item-card"><div class="item-info"><div class="item-icon ${r.type === 'outflow' ? 'fuel' : 'maint'}"><i class="fa-solid ${r.type === 'outflow' ? 'fa-gas-pump' : 'fa-wrench'}"></i></div><div class="item-details"><h4>${r.description}</h4><small>${r.date} • ${subInfo}</small></div></div><div class="item-value"><p>R$ ${r.value.toFixed(2)}</p></div></div>`;
-            });
-            let odometroAtual = kms.length > 0 ? Math.max(...kms) : 0;
-            let odometroMinimo = kms.length > 0 ? Math.min(...kms) : 0;
-            let kmRodadoGeral = odometroAtual - odometroMinimo;
-            let custoPorKm = (kmRodadoGeral > 0) ? (totalFuel / kmRodadoGeral) : 0;
-            document.getElementById('totalSpent').innerText = `R$ ${totalSpent.toFixed(2)}`;
-            document.getElementById('totalKm').innerText = `${odometroAtual} km`;
-            document.getElementById('avgKmCost').innerText = custoPorKm > 0 ? `R$ ${custoPorKm.toFixed(2)} / km` : "R$ 0,00 / km";
-            document.getElementById('itemCount').innerText = `${records.length} itens`;
-            const alertBox = document.getElementById('maintAlertBox');
-            const alertText = document.getElementById('maintAlertText');
-            if(kms.length > 0) {
-                let resto = odometroAtual % limiteCustomizado;
-                let faltam = limiteCustomizado - resto;
-                if(resto < 300 || faltam <= 200) {
-                    alertBox.style.background = "#f8d7da"; alertBox.style.color = "#721c24";
-                    alertText.innerHTML = `⚠️ <b>ATENÇÃO!</b> Hora de fazer a manutenção programada do seu ${vehicle}! (${odometroAtual} km atuais / Limite: ${limiteCustomizado} km)`;
-                } else {
-                    alertBox.style.background = "#e2f0d9"; alertBox.style.color = "#385723";
-                    alertText.innerHTML = `✅ Faltam aproximadamente <b>${faltam} km</b> para a próxima parada preventiva do seu ${vehicle} (Configurado para cada ${limiteCustomizado} km).`;
-                }
-            }
-            renderCharts(totalFuel, totalMaint, currentMonthCost, lastMonthCost);
-        }
-
-        function renderCharts(fuel, maint, currentMonth, lastMonth) {
-            const ctx1 = document.getElementById('gasChart').getContext('2d');
-            if(myChart) myChart.destroy();
-            myChart = new Chart(ctx1, {
-                type: 'pie',
-                data: { labels: ['Combustível', 'Manutenção'], datasets: [{ data: [fuel, maint], backgroundColor: ['#1e3a8a', '#f97316'] }] },
-                options: { maintainAspectRatio: false, responsive: true }
-            });
-            const ctx2 = document.getElementById('monthChart').getContext('2d');
-            if(monthChart) monthChart.destroy();
-            monthChart = new Chart(ctx2, {
-                type: 'bar',
-                data: { labels: ['Mês Anterior', 'Mês Atual'], datasets: [{ data: [lastMonth, currentMonth], backgroundColor: ['#94a3b8', '#ef4444'], borderRadius: 4 }] },
-                options: { maintainAspectRatio: false, responsive: true, plugins: { legend: { display: false } } }
-            });
-        }
-    </script>
-</body>
-</html>
+            document.getElementById('authBtn').innerText = isSignUpMode ? "Cadastrar"
