@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HazLog - Controle de Combustível e Manutenção</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-cool: #f0f4f8;
+            --card-white: #ffffff;
+            --primary-blue: #1e40af;
+            --gradient-blue: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            --accent-cyan: #06b6d4;
+            --expense-red: #ef4444;
+            --warning-orange: #f97316;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --input-bg: #f8fafc;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background-color: var(--bg-cool); color: var(--text-dark); padding: 20px; padding-bottom: 60px; }
+        .hidden { display: none !important; }
+        .app-container { max-width: 1100px; margin: 0 auto; }
+        header { margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        header h1 { font-size: 1.8rem; color: var(--primary-blue); display: flex; align-items: center; gap: 10px; }
+        .header-actions { display: flex; align-items: center; gap: 15px; }
+        .profile-avatar-header { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-blue); cursor: pointer; background: #e2e8f0; }
+        .main-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 768px) { .main-grid { grid-template-columns: 1.3fr 1.7fr; } }
+        .charts-grid { display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 20px; }
+        @media (min-width: 480px) { .charts-grid { grid-template-columns: 1fr 1fr; } }
+        .balance-card { background: var(--gradient-blue); border-radius: 24px; padding: 25px; color: white; }
+        .balance-card small { font-size: 0.85rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+        .balance-card h2 { font-size: 2.3rem; margin: 5px 0 20px 0; font-weight: 700; }
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .stat-box { background: rgba(255, 255, 255, 0.12); padding: 15px; border-radius: 16px; backdrop-filter: blur(5px); }
+        .stat-box p { font-size: 1.1rem; font-weight: 600; margin-top: 4px; }
+        .maintenance-box { background: #fff3cd; border: 1px solid #ffeeba; border-radius: 16px; padding: 15px; margin-top: 15px; color: #856404; }
+        .maintenance-box h4 { font-size: 0.9rem; display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .maintenance-box p { font-size: 0.85rem; font-weight: 600; }
+        .chart-card { background: var(--card-white); padding: 20px; border-radius: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); height: 240px; display: flex; flex-direction: column; }
+        .chart-container { flex: 1; position: relative; width: 100%; height: 100%; }
+        .section-card { background: var(--card-white); border-radius: 24px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .transaction-list { display: flex; flex-direction: column; gap: 12px; max-height: 500px; overflow-y: auto; padding-right: 5px; }
+        .item-card { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-radius: 16px; background: var(--input-bg); border: 1px solid #edf2f7; transition: 0.2s; }
+        .item-info { display: flex; align-items: center; gap: 15px; }
+        .item-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+        .item-icon.fuel { background: #eff6ff; color: var(--primary-blue); }
+        .item-icon.maint { background: #fff7ed; color: var(--warning-orange); }
+        .item-details h4 { font-size: 0.95rem; font-weight: 600; color: var(--text-dark); }
+        .item-details small { color: var(--text-muted); font-size: 0.8rem; }
+        .item-value { text-align: right; }
+        .item-value p { font-weight: 700; font-size: 1rem; color: var(--text-dark); }
+        .btn-trigger { background: var(--primary-blue); color: white; border: none; padding: 12px 20px; border-radius: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(30, 64, 175, 0.2); }
+        .btn-trigger:hover { background: #1d4ed8; }
+        .toggle-link { color: var(--primary-blue); cursor: pointer; text-decoration: underline; font-size: 0.9rem; font-weight: 600; display: inline-block; margin-top: 15px; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
+        .modal-body { background: var(--card-white); width: 100%; max-width: 480px; border-radius: 24px; padding: 30px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow-y: auto; max-height: 90vh; }
+        .modal-tabs { display: flex; background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 10px; border: none; border-radius: 9px; font-weight: 600; cursor: pointer; background: transparent; color: var(--text-muted); }
+        .tab-btn.active { background: var(--primary-blue); color: white; }
+        .input-group { margin-bottom: 16px; }
+        .input-group label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+        .input-group input, .input-group select { width: 100%; padding: 12px 16px; border-radius: 12px; border: 1px solid #cbd5e1; background: var(--input-bg); outline: none; font-size: 0.95rem; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .btn-submit { width: 100%; padding: 14px; background: var(--primary-blue); color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; font-size: 1rem; }
+        .btn-close { width: 100%; background: none; border: none; color: var(--text-muted); margin-top: 12px; cursor: pointer; font-size: 0.9rem; }
+        .avatar-container { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .profile-preview { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; background: #e2e8f0; border: 3px solid var(--primary-blue); }
+        .file-input-wrapper { position: relative; overflow: hidden; display: inline-block; }
+        .btn-upload { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="loginPage" style="max-width: 360px; margin: 80px auto; text-align: center; background: white; padding: 35px; border-radius: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.03);">
+        <i class="fa-solid fa-gas-pump" style="font-size: 3rem; color: var(--primary-blue); margin-bottom: 15px;"></i>
+        <h2 id="authTitle" style="margin-bottom: 25px; color: var(--primary-blue);">HazLog</h2>
+        <input type="text" id="userInput" placeholder="Seu Nome" style="width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; margin-bottom: 12px; outline: none;">
+        <input type="password" id="passInput" placeholder="Senha" style="width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; margin-bottom: 20px; outline: none;">
+        <button id="authBtn" onclick="handleAuth()" style="width: 100%; padding: 14px; background: var(--gradient-blue); border: none; color: white; border-radius: 12px; font-weight: bold; cursor: pointer;">Entrar</button>
+        <div><span class="toggle-link" id="authToggleLink" onclick="toggleAuthMode()">Não tem conta? Criar Conta</span></div>
+    </div>
+
+    <div id="appPage" class="app-container hidden">
+        <header>
+            <h1 id="welcomeUser"><i id="vehicleIcon" class="fa-solid fa-motorcycle"></i> HazLog - <span></span></h1>
+            <div class="header-actions">
+                <button class="btn-trigger" onclick="toggleModal(true)"><i class="fa-solid fa-plus"></i> Novo Registro</button>
+                <img id="headerAvatar" class="profile-avatar-header" src="" alt="Avatar" onclick="toggleProfileModal(true)" title="Visualizar Perfil">
+            </div>
+        </header>
+
+        <div class="main-grid">
+            <div>
+                <div class="balance-card">
+                    <small>Custo Médio p/ KM</small>
+                    <h2 id="avgKmCost">R$ 0,00 / km</h2>
+                    <div class="stats-row">
+                        <div class="stat-box"><small>Despesa Total</small><p id="totalSpent">R$ 0,00</p></div>
+                        <div class="stat-box"><small>Odômetro Atual</small><p id="totalKm">0 km</p></div>
+                    </div>
+                    <div class="maintenance-box" id="maintAlertBox">
+                        <h4><i class="fa-solid fa-triangle-exclamation"></i> Revisão Recomendada</h4>
+                        <p id="maintAlertText">Insira registros com KM para monitorar sua manutenção.</p>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">Gasto por Tipo</h3>
+                        <div class="chart-container"><canvas id="gasChart"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">Comparativo Mensal</h3>
+                        <div class="chart-container"><canvas id="monthChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-header">
+                    <h3>Histórico Geral</h3>
+                    <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;" id="itemCount">0 registros</span>
+                </div>
+                <div class="transaction-list" id="logList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="profileModal" class="modal-overlay hidden">
+        <div class="modal-body">
+            <h3 style="text-align: center; margin-bottom: 20px;">Configurações</h3>
+            <div class="avatar-container">
+                <img id="profilePreview" class="profile-preview" src="" alt="Foto de Perfil">
+                <div class="file-input-wrapper">
+                    <button class="btn-upload">Alterar Foto</button>
+                    <input type="file" id="avatarInput" accept="image/*" onchange="previewImage(this)" style="position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Tipo de Veículo Principal</label>
+                <select id="profileVehicleType" onchange="updateDefaultKmFields()">
+                    <option value="moto">Moto</option>
+                    <option value="carro">Carro</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Intervalo para Manutenção / Troca de Óleo (KM)</label>
+                <input type="number" id="profileMaintLimit" placeholder="Ex: 4000">
+            </div>
+            <div class="input-group">
+                <label>Nome de Usuário</label>
+                <input type="text" id="profileUser">
+            </div>
+            <div class="input-group">
+                <label>Nova Senha</label>
+                <input type="password" id="profilePass" placeholder="Deixe em branco para manter">
+            </div>
+            <button class="btn-submit" onclick="saveProfile()">Salvar Alterações</button>
+            <button class="btn-close" onclick="toggleProfileModal(false)">Voltar</button>
+        </div>
+    </div>
+
+    <div id="actionModal" class="modal-overlay hidden">
+        <div class="modal-body">
+            <h3 style="text-align: center; margin-bottom: 20px;">Adicionar Lançamento</h3>
+            <div class="modal-tabs">
+                <button id="tabOut" class="tab-btn active" onclick="setModalType('outflow')">Abastecimento</button>
+                <button id="tabIn" class="tab-btn" onclick="setModalType('maintenance')">Manutenção Geral</button>
+            </div>
+            
+            <div class="input-group">
+                <label>Descrição</label>
+                <input type="text" id="logDesc" placeholder="Ex: Posto BR, Abastecimento Semanal...">
+            </div>
+
+            <div id="fuelFieldsGroup">
+                <div class="grid-2">
+                    <div class="input-group">
+                        <label>Valor Abastecido (R$)</label>
+                        <input type="number" id="logValueFuel" placeholder="0,00" step="0.01" oninput="calculateLiters()">
+                    </div>
+                    <div class="input-group">
+                        <label>Valor da Gasolina (R$ por Litro)</label>
+                        <input type="number" id="logGasPrice" placeholder="Ex: 5,89" step="0.001" oninput="calculateLiters()">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Litros Abastecidos (Calculado Automaticamente)</label>
+                    <input type="number" id="logLiters" placeholder="0,00" step="0.01">
+                </div>
+            </div>
+
+            <div id="maintFieldsGroup" class="hidden">
+                <div class="input-group">
+                    <label>Valor da Manutenção (R$)</label>
+                    <input type="number" id="logValueMaint" placeholder="0,00" step="0.01">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>KM Atual (Odômetro)</label>
+                <input type="number" id="logKm" placeholder="Ex: 12400">
+            </div>
+
+            <button class="btn-submit" onclick="saveEntry()">Confirmar Registro</button>
+            <button class="btn-close" onclick="toggleModal(false)">Cancelar</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let currentType = 'outflow';
+        let myChart = null;
+        let monthChart = null;
+        let isSignUpMode = false;
+        let base64Avatar = "";
+        const defaultAvatar = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364748b'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>";
+
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            document.getElementById('userInput').value = '';
+            document.getElementById('passInput').value = '';
+            document.getElementById('authTitle').innerText = isSignUpMode ? "Criar Conta" : "HazLog";
+            document.getElementById('authBtn').innerText = isSignUpMode ? "Cadastrar" : "Entrar";
+            document.getElementById('authToggleLink').innerText = isSignUpMode ? "Já tem conta? Login" : "Criar Conta";
+        }
+
+        function handleAuth() {
+            const user = document.getElementById('userInput').value.trim();
+            const pass = document.getElementById('passInput').value;
+            if(!user || !pass) return alert("Preencha todos os campos.");
+            let db = JSON.parse(localStorage.getItem('gaslog_db')) || {};
+            if (isSignUpMode) {
+                if (db[user]) return alert("Usuário existente!");
+                db[user] = { password: pass, avatar: "", vehicleType: "moto", maintLimit: 4000, records: [] };
+                localStorage.setItem('gaslog_db', JSON.stringify(db));
+                alert("Conta criada!");
+            } else {
+                if (!db[user]) return alert("Não encontrado!");
+                if (db[user].password !== pass) return alert("Senha incorreta!");
+            }
+            currentUser = user;
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('appPage').classList.remove('hidden');
+            updateDashboard();
+        }
+
+        function toggleProfileModal(show) {
+            document.getElementById('profileModal').classList.toggle('hidden', !show);
+            if(show) {
+                let db = JSON.parse(localStorage.getItem('gaslog_db'));
+                document.getElementById('profileUser').value = currentUser;
+                document.getElementById('profilePass').value = "";
+                const vehicleType = db[currentUser].vehicleType || "moto";
+                document.getElementById('profileVehicleType').value = vehicleType;
+                document.getElementById('profileMaintLimit').value = db[currentUser].maintLimit || (vehicleType === "moto" ? 4000 : 6000);
+                base64Avatar = db[currentUser].avatar || defaultAvatar;
+                document.getElementById('profilePreview').src = base64Avatar;
+            }
+        }
+
+        function updateDefaultKmFields() {
+            const vType = document.getElementById('profileVehicleType').value;
+            document.getElementById('profileMaintLimit').value = vType == "moto" ? 4000 : 6000;
+        }
+
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    base64Avatar = e.target.result;
+                    document.getElementById('profilePreview').src = base64Avatar;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function saveProfile() {
+            const newUser = document.getElementById('profileUser').value.trim();
+            const newPass = document.getElementById('profilePass').value;
+            const vType = document.getElementById('profileVehicleType').value;
+            const mLimit = parseInt(document.getElementById('profileMaintLimit').value) || (vType === "moto" ? 4000 : 6000);
+            if(!newUser) return alert("Nome inválido.");
+            let db = JSON.parse(localStorage.getItem('gaslog_db'));
+            if(newUser !== currentUser && db[newUser]) return alert("Nome em uso.");
+            let userData = db[currentUser];
+            userData.avatar = base64Avatar;
+            userData.vehicleType = vType;
+            userData.maintLimit = mLimit;
+            if(newPass.trim() !== "") userData.password = newPass;
+            if(newUser !== currentUser) {
+                db[newUser] = userData;
+                delete db[currentUser];
+                currentUser = newUser;
+            } else {
+                db[currentUser] = userData;
+            }
+            localStorage.setItem('gaslog_db', JSON.stringify(db));
+            toggleProfileModal(false);
+            updateDashboard();
+        }
+
+        function toggleModal(show) {
+            document.getElementById('actionModal').classList.toggle('hidden', !show);
+            if(show) {
+                document.getElementById('logDesc').value = '';
+                document.getElementById('logValueFuel').value = '';
+                document.getElementById('logGasPrice').value = '';
+                document.getElementById('logValueMaint').value = '';
+                document.getElementById('logKm').value = '';
+                document.getElementById('logLiters').value = '';
+                setModalType('outflow');
+            }
+        }
+
+        function setModalType(type) {
+            currentType = type;
+            document.getElementById('tabOut').classList.toggle('active', type === 'outflow');
+            document.getElementById('tabIn').classList.toggle('active', type === 'maintenance');
+            
+            if(type === 'outflow') {
+                document.getElementById('fuelFieldsGroup').classList.remove('hidden');
+                document.getElementById('maintFieldsGroup').classList.add('hidden');
+            } else {
+                document.getElementById('fuelFieldsGroup').classList.add('hidden');
+                document.getElementById('maintFieldsGroup').classList.remove('hidden');
+            }
+        }
+
+        function calculateLiters() {
+            const totalValue = parseFloat(document.getElementById('logValueFuel').value) || 0;
+            const gasPrice = parseFloat(document.getElementById('logGasPrice').value) || 0;
+            if (totalValue > 0 && gasPrice > 0) {
+                const liters = totalValue / gasPrice;
+                document.getElementById('logLiters').value = liters.toFixed(2);
+            } else {
+                document.getElementById('logLiters').value = '';
+            }
+        }
+
+        function saveEntry() {
+            const desc = document.getElementById('logDesc').value.trim();
+            const km = parseInt(document.getElementById('logKm').value) || 0;
+            let val = 0;
+            let gasPrice = 0;
+            let liters = 0;
+
+            if (currentType === 'outflow') {
+                val = parseFloat(document.getElementById('logValueFuel').value) || 0;
+                gasPrice = parseFloat(document.getElementById('logGasPrice').value) || 0;
+                liters = parseFloat(document.getElementById('logLiters').value) || 0;
+                if(!desc || !val || !km) return alert("Por favor, preencha a Descrição, o Valor Abastecido e o KM Atual.");
+            } else {
+                val = parseFloat(document.getElementById('logValueMaint').value) || 0;
+                if(!desc || !val || !km) return alert("Por favor, preencha a Descrição, o Valor da Manutenção e o KM Atual.");
+            }
+
+            let db = JSON.parse(localStorage.getItem('gaslog_db'));
+            const now = new Date();
+            db[currentUser].records.push({
+                id: Date.now(),
+                type: currentType,
+                description: desc,
+                value: val,
+                gasPrice: currentType === 'outflow' ? gasPrice : 0,
+                km: km,
+                liters: currentType === 'outflow' ? liters : 0,
+                date: now.toLocaleDateString('pt-BR'),
+                timestamp: now.getTime()
+            });
+            localStorage.setItem('gaslog_db', JSON.stringify(db));
+            toggleModal(false);
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            let db = JSON.parse(localStorage.getItem('gaslog_db')) || {};
+            let userObj = db[currentUser] || { records: [], avatar: "", vehicleType: "moto", maintLimit: 4000 };
+            let records = userObj.records || [];
+            let vehicle = userObj.vehicleType || "moto";
+            let limiteCustomizado = userObj.maintLimit || (vehicle === "moto" ? 4000 : 6000);
+            document.getElementById('headerAvatar').src = userObj.avatar || defaultAvatar;
+            const iconEl = document.getElementById('vehicleIcon');
+            if (vehicle === 'carro') { iconEl.className = 'fa-solid fa-car'; }
+            else { iconEl.className = 'fa-solid fa-motorcycle'; }
+            document.querySelector('#welcomeUser span').innerText = currentUser;
+            let totalSpent = 0, totalFuel = 0, totalMaint = 0;
+            let kms = [];
+            let currentMonthCost = 0, lastMonthCost = 0;
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            let lastMonth = currentMonth - 1;
+            let lastMonthYear = currentYear;
+            if(lastMonth < 0) { lastMonth = 11; lastMonthYear--; }
+            const listElement = document.getElementById('logList');
+            listElement.innerHTML = '';
+            [...records].reverse().forEach(r => {
+                totalSpent += r.value;
+                if(r.type === 'outflow') totalFuel += r.value;
+                if(r.type === 'maintenance') totalMaint += r.value;
+                if(r.km > 0) kms.push(r.km);
+                let rDate = r.timestamp ? new Date(r.timestamp) : new Date();
+                if(rDate.getMonth() === currentMonth && rDate.getFullYear() === currentYear) { currentMonthCost += r.value; }
+                else if(rDate.getMonth() === lastMonth && rDate.getFullYear() === lastMonthYear) { lastMonthCost += r.value; }
+                
+                let subInfo = `<i class="fa-solid fa-gauge"></i> ${r.km} km`;
+                if(r.liters > 0) {
+                    subInfo += ` | <i class="fa-solid fa-droplet"></i> ${r.liters.toFixed(2)}L`;
+                    if(r.gasPrice > 0) subInfo += ` (R$ ${r.gasPrice.toFixed(2)}/L)`;
+                }
+                
+                listElement.innerHTML += `<div class="item-card"><div class="item-info"><div class="item-icon ${r.type === 'outflow' ? 'fuel' : 'maint'}"><i class="fa-solid ${r.type === 'outflow' ? 'fa-gas-pump' : 'fa-wrench'}"></i></div><div class="item-details"><h4>${r.description}</h4><small>${r.date} • ${subInfo}</small></div></div><div class="item-value"><p>R$ ${r.value.toFixed(2)}</p></div></div>`;
+            });
+            let odometroAtual = kms.length > 0 ? Math.max(...kms) : 0;
+            let odometroMinimo = kms.length > 0 ? Math.min(...kms) : 0;
+            let kmRodadoGeral = odometroAtual - odometroMinimo;
+            let custoPorKm = (kmRodadoGeral > 0) ? (totalFuel / kmRodadoGeral) : 0;
+            document.getElementById('totalSpent').innerText = `R$ ${totalSpent.toFixed(2)}`;
+            document.getElementById('totalKm').innerText = `${odometroAtual} km`;
+            document.getElementById('avgKmCost').innerText = custoPorKm > 0 ? `R$ ${custoPorKm.toFixed(2)} / km` : "R$ 0,00 / km";
+            document.getElementById('itemCount').innerText = `${records.length} itens`;
+            const alertBox = document.getElementById('maintAlertBox');
+            const alertText = document.getElementById('maintAlertText');
+            if(kms.length > 0) {
+                let resto = odometroAtual % limiteCustomizado;
+                let faltam = limiteCustomizado - resto;
+                if(resto < 300 || faltam <= 200) {
+                    alertBox.style.background = "#f8d7da"; alertBox.style.color = "#721c24";
+                    alertText.innerHTML = `?? <b>ATENÇÃO!</b> Hora de fazer a manutenção programada do seu ${vehicle}! (${odometroAtual} km atuais / Limite: ${limiteCustomizado} km)`;
+                } else {
+                    alertBox.style.background = "#e2f0d9"; alertBox.style.color = "#385723";
+                    alertText.innerHTML = `? Faltam aproximadamente <b>${faltam} km</b> para a próxima parada preventiva do seu ${vehicle} (Configurado para cada ${limiteCustomizado} km).`;
+                }
+            }
+            renderCharts(totalFuel, totalMaint, currentMonthCost, lastMonthCost);
+        }
+
+        function renderCharts(fuel, maint, currentMonth, lastMonth) {
+            const ctx1 = document.getElementById('gasChart').getContext('2d');
+            if(myChart) myChart.destroy();
+            myChart = new Chart(ctx1, {
+                type: 'pie',
+                data: { labels: ['Combustível', 'Manutenção'], datasets: [{ data: [fuel, maint], backgroundColor: ['#1e3a8a', '#f97316'] }] },
+                options: { maintainAspectRatio: false, responsive: true }
+            });
+            const ctx2 = document.getElementById('monthChart').getContext('2d');
+            if(monthChart) monthChart.destroy();
+            monthChart = new Chart(ctx2, {
+                type: 'bar',
+                data: { labels: ['Mês Anterior', 'Mês Atual'], datasets: [{ data: [lastMonth, currentMonth], backgroundColor: ['#94a3b8', '#ef4444'], borderRadius: 4 }] },
+                options: { maintainAspectRatio: false, responsive: true, plugins: { legend: { display: false } } }
+            });
+        }
+    </script>
+</body>
+</html>
